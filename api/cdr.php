@@ -103,7 +103,7 @@ foreach ($params as $key => $value) {
 $stmtCount->execute();
 $total = (int)$stmtCount->fetchColumn();
 
-$dataSql = "SELECT calldate, clid, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition, uniqueid, linkedid FROM cdr $sqlWhere ORDER BY calldate DESC LIMIT :limit OFFSET :offset";
+$dataSql = "SELECT calldate, clid, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition, uniqueid, linkedid FROM cdr $sqlWhere ORDER BY calldate DESC, uniqueid DESC LIMIT :limit OFFSET :offset";
 $stmt = $pdo->prepare($dataSql);
 foreach ($params as $key => $value) {
     $stmt->bindValue($key, $value);

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="803c7a3d-a6fc-4ec9-93d2-406d4a6f31be" name="FreePBX">
+        <fileTransfer accessType="SFTP" host="192.168.115.7" port="22" sshConfigId="7351e040-86b2-4344-b211-2b7c20365873" sshConfig="root@192.168.115.7:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
