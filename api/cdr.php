@@ -122,23 +122,22 @@ foreach ($results as &$row) {
     $row['dst_trunk'] = getTrunkNameFromChannel($row['dstchannel']);
 
 
+    $recordingFiles = [];
     try {
         $date = new DateTime(trim($row['calldate']));
         $subDir = $date->format('Y/m/d');
         $dirPath = "$baseDir/$subDir";
-        $recordingFile = null;
 
         $patternWav = "$dirPath/*$uniqueid.wav";
         $patternMp3 = "$dirPath/*$uniqueid.mp3";
         $matches = array_merge(glob($patternWav), glob($patternMp3));
 
-        if (count($matches) > 0) {
-            $recordingFile = basename($matches[0]);
+        foreach ($matches as $match) {
+            $recordingFiles[] = "$subDir/" . basename($match);
         }
 
-        $row['recording_url'] = $recordingFile ? "$subDir/$recordingFile" : null;
+        $row['recording_urls'] = $recordingFiles;
     } catch (Exception $e) {
-        $row['recording_url'] = null;
     }
 }
 
