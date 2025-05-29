@@ -3,7 +3,7 @@
 $host = 'localhost';
 $db = 'asteriskcdrdb';
 $user = 'freepbxuser';
-$pass = '492771210fa3a3dc478adeb9403615e9'; // замените на ваш пароль
+$pass = ''; // замените на ваш пароль
 
 try {
     $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);

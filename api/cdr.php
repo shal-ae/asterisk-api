@@ -1,18 +1,48 @@
 <?php
-// Настройки подключения к базе данных
-$validApiKey = 'my-secret-key-123'; // установи свой API-ключ
-$host = 'localhost';
-$db = 'asteriskcdrdb';
-$user = 'freepbxuser';
-$pass = '492771210fa3a3dc478adeb9403615e9'; // замените на актуальный
 
-// === ПРОВЕРКА API-KEY ===
+// === НАСТРОЙКИ ===
+$configFile = __DIR__ . '/.api.env.php';
+if (!file_exists($configFile)) {
+    http_response_code(500);
+    echo json_encode(['error' => 'Configuration file not found']);
+    exit;
+}
+$config = include $configFile;
+
+$validApiKey = $config['api_key'];
+$host = $config['db_host'];
+$db = $config['db_name'];
+$user = $config['db_user'];
+$pass = $config['db_pass'];
+$baseDir = $config['recordings_path'];
+
+
+// === АВТОРИЗАЦИЯ ===
 $headers = getallheaders();
 $authHeader = $headers['Authorization'] ?? '';
 if (!preg_match('/Bearer\s+(.+)/', $authHeader, $matches) || $matches[1] !== $validApiKey) {
     http_response_code(401);
     echo json_encode(['error' => 'Unauthorized']);
     exit;
+}
+
+// === ПАРАМЕТРЫ ЗАПРОСА ===
+$src = $_GET['src'] ?? '';
+$dst = $_GET['dst'] ?? '';
+$dateFrom = $_GET['date_from'] ?? '';
+$dateTo = $_GET['date_to'] ?? '';
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPage = max(1, min(1000, (int)($_GET['per_page'] ?? 100)));
+$minDuration = isset($_GET['min_duration']) ? (int)$_GET['min_duration'] : null;
+$answered = isset($_GET['answered']) ? (int)$_GET['answered'] : null;
+
+$offset = ($page - 1) * $perPage;
+
+function extractExtension($channel) {
+    if (preg_match('/(?:SIP|PJSIP|Local)\/(\d+)(?:\-|\/)/', $channel, $m)) {
+        return $m[1];
+    }
+    return null;
 }
 
 try {
@@ -23,79 +53,119 @@ try {
     exit;
 }
 
-// Параметры GET
-$src = $_GET['src'] ?? '';
-$dst = $_GET['dst'] ?? '';
-$dateFrom = $_GET['date_from'] ?? '';
-$dateTo = $_GET['date_to'] ?? '';
-$limit = $_GET['limit'] ?? 10;
-$limit = (int)$limit;
+function getTrunkNameFromChannel($channel) {
+    if (preg_match('/^(SIP|PJSIP|DAHDI|IAX2)\\/([\\w\\-\\.]+?)-\\w+$/', $channel, $m)) {
+        $name = $m[2];
+        if (!preg_match('/^\\d{2,6}$/', $name)) {
+            return $name;
+        }
+    }
+    return null;
+}
 
-// Сбор SQL-запроса
-$sql = "SELECT calldate, clid, src, dst, duration, billsec, disposition, uniqueid FROM cdr WHERE 1=1";
+// === SQL ===
+$sqlWhere = "WHERE 1=1";
 $params = [];
 
 if (!empty($src)) {
-    $sql .= " AND src = :src";
+    $sqlWhere .= " AND src = :src";
     $params[':src'] = $src;
 }
 if (!empty($dst)) {
-    $sql .= " AND dst = :dst";
+    $sqlWhere .= " AND dst = :dst";
     $params[':dst'] = $dst;
 }
 if (!empty($dateFrom)) {
-    $sql .= " AND calldate >= :date_from";
+    $sqlWhere .= " AND calldate >= :date_from";
     $params[':date_from'] = $dateFrom . " 00:00:00";
 }
 if (!empty($dateTo)) {
-    $sql .= " AND calldate <= :date_to";
+    $sqlWhere .= " AND calldate <= :date_to";
     $params[':date_to'] = $dateTo . " 23:59:59";
 }
+if (!is_null($minDuration)) {
+    $sqlWhere .= " AND duration > :min_duration";
+    $params[':min_duration'] = $minDuration;
+}
+if (!is_null($answered)) {
+    if ($answered === 1) {
+        $sqlWhere .= " AND disposition = 'ANSWERED'";
+    } elseif ($answered === 0) {
+        $sqlWhere .= " AND disposition != 'ANSWERED'";
+    }
+}
 
-$sql .= " ORDER BY calldate DESC LIMIT :limit";
-$stmt = $pdo->prepare($sql);
+$countSql = "SELECT COUNT(*) FROM cdr $sqlWhere";
+$stmtCount = $pdo->prepare($countSql);
+foreach ($params as $key => $value) {
+    $stmtCount->bindValue($key, $value);
+}
+$stmtCount->execute();
+$total = (int)$stmtCount->fetchColumn();
 
-// Привязка параметров
+$dataSql = "SELECT calldate, clid, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition, uniqueid, linkedid FROM cdr $sqlWhere ORDER BY calldate DESC LIMIT :limit OFFSET :offset";
+$stmt = $pdo->prepare($dataSql);
 foreach ($params as $key => $value) {
     $stmt->bindValue($key, $value);
 }
-$stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
-
+$stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
+$stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Пути к записям
-$baseDir = '/var/spool/asterisk/monitor';
-$baseUrl = ''; // Замените на ваш IP или домен
-
 foreach ($results as &$row) {
     $uniqueid = $row['uniqueid'];
-    $date = new DateTime($row['calldate']);
-    $subDir = $date->format('Y/m/d'); // YYYY/MM/DD
-    $dirPath = "$baseDir/$subDir";
-    $recordingFile = null;
+    $row['src_ext'] = extractExtension($row['channel']);
+    $row['dst_ext'] = extractExtension($row['dstchannel']);
 
-    // Поиск файла, заканчивающегося на uniqueid.wav
-    if (is_dir($dirPath)) {
-        foreach (scandir($dirPath) as $file) {
-	    if (substr($file, -strlen("$uniqueid.wav")) === "$uniqueid.wav") {
-                $recordingFile = $file;
-                break;
-            }
+    $row['src_trunk'] = getTrunkNameFromChannel($row['channel']);
+    $row['dst_trunk'] = getTrunkNameFromChannel($row['dstchannel']);
+
+
+    try {
+        $date = new DateTime(trim($row['calldate']));
+        $subDir = $date->format('Y/m/d');
+        $dirPath = "$baseDir/$subDir";
+        $recordingFile = null;
+
+        $patternWav = "$dirPath/*$uniqueid.wav";
+        $patternMp3 = "$dirPath/*$uniqueid.mp3";
+        $matches = array_merge(glob($patternWav), glob($patternMp3));
+
+        if (count($matches) > 0) {
+            $recordingFile = basename($matches[0]);
         }
-    }
-    if ($recordingFile) {
-        $row['recording_url'] = "$baseUrl/$subDir/$recordingFile";
-    } else {
+
+        $row['recording_url'] = $recordingFile ? "$subDir/$recordingFile" : null;
+    } catch (Exception $e) {
         $row['recording_url'] = null;
     }
 }
 
-// Ответ
-header('Content-Type: application/json');
-//echo json_encode($results, JSON_PRETTY_PRINT);
+$grouped = [];
+foreach ($results as $row) {
+    $linkedid = $row['linkedid'] ?? $row['uniqueid'];
+    if (!isset($grouped[$linkedid])) {
+        $grouped[$linkedid] = [];
+    }
+    $grouped[$linkedid][] = $row;
+}
 
+$groupedArray = [];
+foreach ($grouped as $linkedid => $records) {
+    $groupedArray[] = [
+        'linkedid' => $linkedid,
+        'items' => $records
+    ];
+}
+
+header('Content-Type: application/json');
 echo json_encode([
     'status' => 'OK',
-    'content' => $results
+    'page' => $page,
+    'per_page' => $perPage,
+    'total' => $total,
+    'pages_count' => ceil($total / $perPage),
+    'content' => $groupedArray
 ], JSON_PRETTY_PRINT);
+
