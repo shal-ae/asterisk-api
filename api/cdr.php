@@ -10,9 +10,9 @@ if (!file_exists($configFile)) {
 $config = include $configFile;
 
 $validApiKey = $config['api_key'];
-$host = $config['db_host'];
-$db = $config['db_name'];
-$user = $config['db_user'];
+$host = $config['db_host'] ?? 'localhost';
+$db = $config['db_name_cdr'] ?? 'asteriskcdrdb';
+$user = $config['db_user'] ?? 'freepbxuser';
 $pass = $config['db_pass'];
 $baseDir = $config['recordings_path'];
 $order_direction = 'ASC';
@@ -105,7 +105,7 @@ foreach ($params as $key => $value) {
 $stmtCount->execute();
 $total = (int)$stmtCount->fetchColumn();
 
-$dataSql = "SELECT uniqueid, linkedid, calldate, clid, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition FROM cdr $sqlWhere ORDER BY calldate $order_direction , uniqueid $order_direction LIMIT :limit OFFSET :offset";
+$dataSql = "SELECT uniqueid, linkedid, calldate, clid, accountcode, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition FROM cdr $sqlWhere ORDER BY calldate $order_direction , uniqueid $order_direction LIMIT :limit OFFSET :offset";
 $stmt = $pdo->prepare($dataSql);
 foreach ($params as $key => $value) {
     $stmt->bindValue($key, $value);
@@ -138,8 +138,16 @@ foreach ($results as &$row) {
     $row['recording_urls'] = $recordingFiles;
 }
 
+$seen = [];
 $grouped = [];
 foreach ($results as $row) {
+    // Пропускаем дубликаты по uniqueid
+    $uid = $row['uniqueid'];
+    if (isset($seen[$uid])) {
+        continue;
+    }
+    $seen[$uid] = true;
+
     $linkedid = $row['linkedid'] ?? $row['uniqueid'];
     if (!isset($grouped[$linkedid])) {
         $grouped[$linkedid] = [];

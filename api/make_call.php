@@ -42,6 +42,7 @@ if (!preg_match('/^\d{3,15}$/', $to)) {
 $fileContent = 
     "Channel: Local/{$from}@{$context}\r\n" .
     "Callerid: Web Call <{$from}>\r\n" .
+    "Account: {$from}\r\n" .
     "Context: {$context}\r\n" .
     "Extension: {$to}\r\n" .
     "Priority: 1\r\n" .
