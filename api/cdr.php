@@ -15,7 +15,7 @@ $db = $config['db_name'];
 $user = $config['db_user'];
 $pass = $config['db_pass'];
 $baseDir = $config['recordings_path'];
-
+$order_direction = 'ASC';
 
 // === АВТОРИЗАЦИЯ ===
 $headers = getallheaders();
@@ -38,7 +38,8 @@ $answered = isset($_GET['answered']) ? (int)$_GET['answered'] : null;
 
 $offset = ($page - 1) * $perPage;
 
-function extractExtension($channel) {
+function extractExtension($channel)
+{
     if (preg_match('/(?:SIP|PJSIP|Local)\/(\d+)(?:\-|\/)/', $channel, $m)) {
         return $m[1];
     }
@@ -53,7 +54,8 @@ try {
     exit;
 }
 
-function getTrunkNameFromChannel($channel) {
+function getTrunkNameFromChannel($channel)
+{
     if (preg_match('/^(SIP|PJSIP|DAHDI|IAX2)\\/([\\w\\-\\.]+?)-\\w+$/', $channel, $m)) {
         $name = $m[2];
         if (!preg_match('/^\\d{2,6}$/', $name)) {
@@ -103,7 +105,7 @@ foreach ($params as $key => $value) {
 $stmtCount->execute();
 $total = (int)$stmtCount->fetchColumn();
 
-$dataSql = "SELECT calldate, clid, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition, uniqueid, linkedid FROM cdr $sqlWhere ORDER BY calldate DESC, uniqueid DESC LIMIT :limit OFFSET :offset";
+$dataSql = "SELECT uniqueid, linkedid, calldate, clid, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition FROM cdr $sqlWhere ORDER BY calldate $order_direction , uniqueid $order_direction LIMIT :limit OFFSET :offset";
 $stmt = $pdo->prepare($dataSql);
 foreach ($params as $key => $value) {
     $stmt->bindValue($key, $value);
@@ -117,28 +119,23 @@ foreach ($results as &$row) {
     $uniqueid = $row['uniqueid'];
     $row['src_ext'] = extractExtension($row['channel']);
     $row['dst_ext'] = extractExtension($row['dstchannel']);
-
     $row['src_trunk'] = getTrunkNameFromChannel($row['channel']);
     $row['dst_trunk'] = getTrunkNameFromChannel($row['dstchannel']);
 
-
     $recordingFiles = [];
-    try {
-        $date = new DateTime(trim($row['calldate']));
-        $subDir = $date->format('Y/m/d');
-        $dirPath = "$baseDir/$subDir";
+    $date = new DateTime(trim($row['calldate']));
+    $subDir = $date->format('Y/m/d');
+    $dirPath = "$baseDir/$subDir";
 
-        $patternWav = "$dirPath/*$uniqueid.wav";
-        $patternMp3 = "$dirPath/*$uniqueid.mp3";
-        $matches = array_merge(glob($patternWav), glob($patternMp3));
+    $patternWav = "$dirPath/*$uniqueid.wav";
+    $patternMp3 = "$dirPath/*$uniqueid.mp3";
+    $matches = array_merge(glob($patternWav), glob($patternMp3));
 
-        foreach ($matches as $match) {
-            $recordingFiles[] = "$subDir/" . basename($match);
-        }
-
-        $row['recording_urls'] = $recordingFiles;
-    } catch (Exception $e) {
+    foreach ($matches as $match) {
+        $recordingFiles[] = "$subDir/" . basename($match);
     }
+
+    $row['recording_urls'] = $recordingFiles;
 }
 
 $grouped = [];
