@@ -35,6 +35,7 @@ $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = max(1, min(1000, (int)($_GET['per_page'] ?? 100)));
 $minDuration = isset($_GET['min_duration']) ? (int)$_GET['min_duration'] : null;
 $answered = isset($_GET['answered']) ? (int)$_GET['answered'] : null;
+$fieldset = $_GET['fieldset'] ?? ''; // all - для отладки
 
 $offset = ($page - 1) * $perPage;
 
@@ -105,7 +106,12 @@ foreach ($params as $key => $value) {
 $stmtCount->execute();
 $total = (int)$stmtCount->fetchColumn();
 
-$dataSql = "SELECT uniqueid, linkedid, calldate, clid, accountcode, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition FROM cdr $sqlWhere ORDER BY calldate $order_direction , uniqueid $order_direction LIMIT :limit OFFSET :offset";
+$fields = "uniqueid, linkedid, calldate, clid, accountcode, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition";
+if ($fieldset === 'all') {
+    $fields = "*";
+}
+
+$dataSql = "SELECT $fields FROM cdr $sqlWhere ORDER BY calldate $order_direction , uniqueid $order_direction LIMIT :limit OFFSET :offset";
 $stmt = $pdo->prepare($dataSql);
 foreach ($params as $key => $value) {
     $stmt->bindValue($key, $value);

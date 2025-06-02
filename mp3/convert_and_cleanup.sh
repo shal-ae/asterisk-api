@@ -51,7 +51,7 @@ find "$TARGET_BASE" -type f -name "*.wav" $DAYS | while read wav; do
     echo "[$(date)] Converting: $wav" >> "$LOG"
 
     # Конвертация: подавляем sox warning
-    sox "$wav" -t wavpcm - 2>/dev/null | lame - "$mp3" >> "$LOG" 2>&1
+    sox "$wav" -t wavpcm - 2>/dev/null | lame -b 64 - "$mp3" >> "$LOG" 2>&1
 
     if [ $? -eq 0 ]; then
       echo "[$(date)] Success: $mp3 created. Removing $wav" >> "$LOG"
