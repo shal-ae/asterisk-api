@@ -30,24 +30,37 @@ if (!preg_match('#^[0-9]{4}/[0-9]{2}/[0-9]{2}/[-\w\.]+\.(wav|mp3)$#', $relPath))
 
 $fullPath = "$baseDir/$relPath";
 
+// === КОНВЕРСИЯ ПУТИ ЕСЛИ ЗАПРОШЕН WAV, НО ЕСТЬ MP3 ===
+// === Совместимость с PHP 7 ===
+if (!function_exists('str_ends_with')) {
+    function str_ends_with($haystack, $needle) {
+        return substr($haystack, -strlen($needle)) === $needle;
+    }
+}
+
+if (str_ends_with($fullPath, '.wav') && !file_exists($fullPath)) {
+    $mp3Path = substr($fullPath, 0, -4) . '.mp3';
+    if (file_exists($mp3Path) ) {
+        $fullPath = $mp3Path;
+    }
+}
+
 if (!file_exists($fullPath)) {
     http_response_code(404);
     echo "File not found.";
     exit;
 }
 
-$ext = pathinfo($fullPath, PATHINFO_EXTENSION);
-switch (strtolower($ext)) {
-    case 'mp3':
-        header('Content-Type: audio/mpeg');
-        break;
-    case 'wav':
-        header('Content-Type: audio/wav');
-        break;
-    default:
-        header('Content-Type: application/octet-stream');
-}
+$filename = basename($fullPath);
+$ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+$contentType = ($ext === 'mp3') ? 'audio/mpeg' : (($ext === 'wav') ? 'audio/wav' : 'application/octet-stream');
 
-header('Content-Disposition: attachment; filename="' . basename($fullPath) . '"');
+header('Content-Description: File Transfer');
+header("Content-Type: $contentType");
+header('Content-Disposition: attachment; filename="' . $filename . '"');
+header('Expires: 0');
+header('Cache-Control: must-revalidate');
+header('Pragma: public');
+header('Content-Length: ' . filesize($fullPath));
 readfile($fullPath);
-
+exit;
