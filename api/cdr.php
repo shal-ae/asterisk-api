@@ -36,6 +36,7 @@ $perPage = max(1, min(1000, (int)($_GET['per_page'] ?? 100)));
 $minDuration = isset($_GET['min_duration']) ? (int)$_GET['min_duration'] : null;
 $answered = isset($_GET['answered']) ? (int)$_GET['answered'] : null;
 $fieldset = $_GET['fieldset'] ?? ''; // all - для отладки
+$keep_one_answered_for_uniqueid = isset($_GET['keep_one_answered_for_uniqueid']) && ($_GET['keep_one_answered_for_uniqueid'] === '1');
 
 $offset = ($page - 1) * $perPage;
 
@@ -144,11 +145,24 @@ foreach ($results as &$row) {
     $row['recording_urls'] = $recordingFiles;
 }
 
+$answeredIds = [];
+foreach ($results as $row) {
+    $uniqueid = $row['uniqueid'];
+    if ($row['disposition'] === 'ANSWERED') {
+        $answeredIds[$uniqueid] = true;
+    }
+}
+
+
 $grouped = [];
 foreach ($results as $row) {
-    $linkedid = $row['linkedid'] ?? $row['uniqueid'];
+    $uniqueid = $row['uniqueid'];
+    $linkedid = $row['linkedid'] ?? $uniqueid;
     if (!isset($grouped[$linkedid])) {
         $grouped[$linkedid] = [];
+    }
+    if (($row['disposition'] !== 'ANSWERED') && isset($answeredIds[$uniqueid]) && $keep_one_answered_for_uniqueid) {
+        continue;
     }
     $grouped[$linkedid][] = $row;
 }
@@ -168,6 +182,16 @@ echo json_encode([
     'per_page' => $perPage,
     'total' => $total,
     'pages_count' => ceil($total / $perPage),
+    'params' => [
+        'date_from' => $dateFrom,
+        'date_to' => $dateTo,
+        'src' => $src,
+        'dst' => $dst,
+        'min_duration' => $minDuration,
+        'answered' => $answered,
+        'fields' => $fields,
+        'keep_one_answered_for_uniqueid' => $keep_one_answered_for_uniqueid
+    ],
     'content' => $groupedArray
 ], JSON_PRETTY_PRINT);
 
