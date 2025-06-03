@@ -37,11 +37,6 @@ $minDuration = isset($_GET['min_duration']) ? (int)$_GET['min_duration'] : null;
 $answered = isset($_GET['answered']) ? (int)$_GET['answered'] : null;
 $fieldset = $_GET['fieldset'] ?? ''; // all - для отладки
 
-$deduplicateUniqueId = true;
-if (isset($_GET['deduplicate_unique_id'])) {
-    $deduplicateUniqueId = $_GET['deduplicate_unique_id'] === '1';
-}
-
 $offset = ($page - 1) * $perPage;
 
 function extractExtension($channel)
@@ -149,16 +144,8 @@ foreach ($results as &$row) {
     $row['recording_urls'] = $recordingFiles;
 }
 
-$seen = [];
 $grouped = [];
 foreach ($results as $row) {
-    // Пропускаем дубликаты по uniqueid
-    $uid = $row['uniqueid'];
-    if (isset($seen[$uid]) && $deduplicateUniqueId) {
-        continue;
-    }
-    $seen[$uid] = true;
-
     $linkedid = $row['linkedid'] ?? $row['uniqueid'];
     if (!isset($grouped[$linkedid])) {
         $grouped[$linkedid] = [];
