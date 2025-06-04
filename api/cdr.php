@@ -67,6 +67,113 @@ function getTrunkNameFromChannel($channel)
     return null;
 }
 
+function buildLinkedIdMapUnified(array $rows): array {
+    $map = [];
+
+    // 1. Через ATTENDEDTRANSFER / BLINDTRANSFER / PARK_END
+    foreach ($rows as $row) {
+        if (in_array($row['eventtype'], ['ATTENDEDTRANSFER', 'BLINDTRANSFER', 'PARK_END'])) {
+            $child = $row['peer'] ?? '';
+            $parent = $row['linkedid'] ?? '';
+            if ($child && $parent && $child !== $parent) {
+                $map[$child] = $parent;
+            }
+        }
+    }
+
+    // 2. Через связи peer → channame (fallback)
+    $chanLinkedMap = [];
+    $peerToChan = [];
+
+    foreach ($rows as $row) {
+        $chan = $row['channame'] ?? '';
+        $peer = $row['peer'] ?? '';
+        $linkedid = $row['linkedid'] ?? '';
+
+        if ($chan && $linkedid) {
+            $chanLinkedMap[$chan] = $linkedid;
+        }
+
+        if ($peer && $chan) {
+            $peerToChan[$peer][] = $chan;
+        }
+    }
+
+    foreach ($peerToChan as $peer => $chans) {
+        if (!isset($chanLinkedMap[$peer])) continue;
+        $parent = $chanLinkedMap[$peer];
+
+        foreach ($chans as $chan) {
+            if (!isset($chanLinkedMap[$chan])) continue;
+            $child = $chanLinkedMap[$chan];
+            if ($child !== $parent && !isset($map[$child])) {
+                $map[$child] = $parent;
+            }
+        }
+    }
+
+    return $map;
+}
+
+function fetchCelRowsByLinkedIds(PDO $pdo, array $linkedids): array {
+    if (empty($linkedids)) {
+        return [];
+    }
+
+    // Подготовим плейсхолдеры
+    $placeholders = [];
+    $params = [];
+    foreach ($linkedids as $i => $id) {
+        $ph = ":id$i";
+        $placeholders[] = $ph;
+        $params[$ph] = $id;
+    }
+
+    $sql = "
+        SELECT
+            eventtime, eventtype, userdeftype, cid_name, cid_num,
+            exten, context, appname, channel AS channame, peer,
+            uniqueid, linkedid
+        FROM cel
+        WHERE linkedid IN (" . implode(', ', $placeholders) . ")
+        ORDER BY eventtime DESC
+    ";
+
+    try {
+        $stmt = $pdo->prepare($sql);
+        foreach ($params as $ph => $val) {
+            $stmt->bindValue($ph, $val);
+        }
+        $stmt->execute();
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } catch (PDOException $e) {
+        error_log("CEL fetch failed: " . $e->getMessage());
+        return [];
+    }
+}
+
+/**
+ * Возвращает "нормализованный" linkedid (корень цепочки)
+ *
+ * @param array $linkedIdMap
+ * @param string $linkedid
+ * @return string
+ */
+function normalize_linkedId(array $linkedIdMap, string $linkedid): string
+{
+    $visited = [];
+    while (isset($linkedIdMap[$linkedid])) {
+        if (in_array($linkedid, $visited)) {
+            // Предотвращаем бесконечный цикл
+            break;
+        }
+        $visited[] = $linkedid;
+        $linkedid = $linkedIdMap[$linkedid];
+    }
+
+    return $linkedid;
+}
+
 // === SQL ===
 $sqlWhere = "WHERE 1=1";
 $params = [];
@@ -145,6 +252,7 @@ foreach ($results as &$row) {
     $row['recording_urls'] = $recordingFiles;
 }
 
+// Строим массив отвеченных uniqueid
 $answeredIds = [];
 foreach ($results as $row) {
     $uniqueid = $row['uniqueid'];
@@ -153,18 +261,45 @@ foreach ($results as $row) {
     }
 }
 
+// Сбор уникальных linkedid из результатов
+$linkedIds = [];
+foreach ($results as $row) {
+    if (!empty($row['linkedid'])) {
+        $linkedIds[] = $row['linkedid'];
+    }
+}
+$linkedIds = array_unique($linkedIds);
+
+// Получаем CEL данные
+$celRows = fetchCelRowsByLinkedIds( $pdo, $linkedIds);
+
+// Получаем соответствия
+$linkedIdMap = buildLinkedIdMapUnified($celRows);
 
 $grouped = [];
+$linkedid_fallback_count = 0;
 foreach ($results as $row) {
     $uniqueid = $row['uniqueid'];
-    $linkedid = $row['linkedid'] ?? $uniqueid;
-    if (!isset($grouped[$linkedid])) {
-        $grouped[$linkedid] = [];
-    }
+
+    // Если выбран режим - "только один отвеченный на uniqueid"
     if (($row['disposition'] !== 'ANSWERED') && isset($answeredIds[$uniqueid]) && $keep_one_answered_for_uniqueid) {
         continue;
     }
-    $grouped[$linkedid][] = $row;
+
+    $linkedid =  $row['linkedid'] ?? $uniqueid;
+    $linkedid_fallback = empty($row['linkedid']);
+    if ($linkedid_fallback) {
+        $row['linkedid_fallback'] = true;
+        $linkedid_fallback_count++;
+    }
+
+    // Нормализуем linkedid через цепочку трансферов
+    $normalized = normalize_linkedId($linkedIdMap, $linkedid);
+
+    if (!isset($grouped[$normalized])) {
+        $grouped[$normalized] = [];
+    }
+    $grouped[$normalized][] = $row;
 }
 
 $groupedArray = [];
@@ -192,6 +327,8 @@ echo json_encode([
         'fields' => $fields,
         'keep_one_answered_for_uniqueid' => $keep_one_answered_for_uniqueid
     ],
+    'linkedIdMap' => $linkedIdMap,
+    'linkedid_fallback_count' => $linkedid_fallback_count,
     'content' => $groupedArray
 ], JSON_PRETTY_PRINT);
 
