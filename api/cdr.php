@@ -332,6 +332,47 @@ foreach ($groupedArray as &$group) {
     }
 }
 
+// === Финальная фильтрация по uniqueid внутри каждой группы linkedid ===
+if ($keep_one_answered_for_uniqueid) {
+    foreach ($groupedArray as &$group) {
+        $byUniqueid = [];
+        foreach ($group['items'] as $item) {
+            $uid = $item['uniqueid'];
+            if (!isset($byUniqueid[$uid])) {
+                $byUniqueid[$uid] = [];
+            }
+            $byUniqueid[$uid][] = $item;
+        }
+
+        $filteredItems = [];
+        foreach ($byUniqueid as $uid => $records) {
+            $hasAnswered = false;
+            foreach ($records as $rec) {
+                if (($rec['disposition'] ?? '') === 'ANSWERED') {
+                    $hasAnswered = true;
+                    break;
+                }
+            }
+
+            if ($hasAnswered) {
+                foreach ($records as $rec) {
+                    if (($rec['disposition'] ?? '') === 'ANSWERED') {
+                        $filteredItems[] = $rec;
+                        break;
+                    }
+                }
+            } else {
+                foreach ($records as $rec) {
+                    $filteredItems[] = $rec;
+                }
+            }
+        }
+
+        $group['items'] = $filteredItems;
+    }
+    unset($group); // good practice with references
+}
+
 header('Content-Type: application/json');
 echo json_encode([
     'status' => 'OK',
