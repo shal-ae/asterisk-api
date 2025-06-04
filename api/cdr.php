@@ -67,7 +67,8 @@ function getTrunkNameFromChannel($channel)
     return null;
 }
 
-function buildLinkedIdMapUnified(array $rows): array {
+function buildLinkedIdMapUnified(array $rows): array
+{
     $map = [];
 
     // 1. Через ATTENDEDTRANSFER / BLINDTRANSFER / PARK_END
@@ -115,7 +116,8 @@ function buildLinkedIdMapUnified(array $rows): array {
     return $map;
 }
 
-function fetchCelRowsByLinkedIds(PDO $pdo, array $linkedids): array {
+function fetchCelRowsByLinkedIds(PDO $pdo, array $linkedids): array
+{
     if (empty($linkedids)) {
         return [];
     }
@@ -131,25 +133,17 @@ function fetchCelRowsByLinkedIds(PDO $pdo, array $linkedids): array {
 
     $sql = "
         SELECT
-            eventtime, eventtype, userdeftype, cid_name, cid_num,
-            exten, context, appname, channel AS channame, peer,
-            uniqueid, linkedid
-        FROM cel
+            id, eventtime, eventtype, linkedid, uniqueid, channame, peer, cid_num, cid_name, context, exten, appname        FROM cel
         WHERE linkedid IN (" . implode(', ', $placeholders) . ")
         ORDER BY eventtime DESC
     ";
 
-    try {
-        $stmt = $pdo->prepare($sql);
-        foreach ($params as $ph => $val) {
-            $stmt->bindValue($ph, $val);
-        }
-        $stmt->execute();
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (PDOException $e) {
-        error_log("CEL fetch failed: " . $e->getMessage());
-        return [];
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $ph => $val) {
+        $stmt->bindValue($ph, $val);
     }
+    $stmt->execute();
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }
 
 /**
@@ -271,13 +265,12 @@ foreach ($results as $row) {
 $linkedIds = array_unique($linkedIds);
 
 // Получаем CEL данные
-$celRows = fetchCelRowsByLinkedIds( $pdo, $linkedIds);
+$celRows = fetchCelRowsByLinkedIds($pdo, $linkedIds);
 
 // Получаем соответствия
 $linkedIdMap = buildLinkedIdMapUnified($celRows);
 
 $grouped = [];
-$linkedid_fallback_count = 0;
 foreach ($results as $row) {
     $uniqueid = $row['uniqueid'];
 
@@ -286,12 +279,7 @@ foreach ($results as $row) {
         continue;
     }
 
-    $linkedid =  $row['linkedid'] ?? $uniqueid;
-    $linkedid_fallback = empty($row['linkedid']);
-    if ($linkedid_fallback) {
-        $row['linkedid_fallback'] = true;
-        $linkedid_fallback_count++;
-    }
+    $linkedid = $row['linkedid'] ?? $uniqueid; // хотя ни разу не был пустой
 
     // Нормализуем linkedid через цепочку трансферов
     $normalized = normalize_linkedId($linkedIdMap, $linkedid);
@@ -308,6 +296,40 @@ foreach ($grouped as $linkedid => $records) {
         'linkedid' => $linkedid,
         'items' => $records
     ];
+}
+
+
+// === Коррекция disposition и billsec на основе CEL ===
+foreach ($groupedArray as &$group) {
+    $linkedid = $group['linkedid'] ?? null;
+    if (!$linkedid) continue;
+
+    $celSubset = array_filter($celRows, function ($r) use ($linkedid) {
+        return $r['linkedid'] === $linkedid;
+    });
+
+    $bridgeEnter = null;
+    $bridgeExit = null;
+    foreach ($celSubset as $event) {
+        if ($event['eventtype'] === 'BRIDGE_ENTER') {
+            $bridgeEnter = strtotime($event['eventtime']);
+        } elseif ($event['eventtype'] === 'BRIDGE_EXIT') {
+            $bridgeExit = strtotime($event['eventtime']);
+        }
+    }
+
+    $realDuration = ($bridgeEnter && $bridgeExit && $bridgeExit > $bridgeEnter)
+        ? $bridgeExit - $bridgeEnter
+        : null;
+
+    foreach ($group['items'] as &$item) {
+        $item['real_answered'] = false;
+        if ($realDuration !== null) {
+            $item['disposition'] = 'ANSWERED';
+            $item['billsec'] = $realDuration;
+            $item['real_answered'] = true;
+        }
+    }
 }
 
 header('Content-Type: application/json');
@@ -328,7 +350,6 @@ echo json_encode([
         'keep_one_answered_for_uniqueid' => $keep_one_answered_for_uniqueid
     ],
     'linkedIdMap' => $linkedIdMap,
-    'linkedid_fallback_count' => $linkedid_fallback_count,
     'content' => $groupedArray
 ], JSON_PRETTY_PRINT);
 

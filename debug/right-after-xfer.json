@@ -1,0 +1,79 @@
+[
+  {
+    "linkedid": "1749032306.891",
+    "items": [
+      {
+        "uniqueid": "1749032306.891",
+        "linkedid": "1749032306.891",
+        "calldate": "2025-06-04 13:18:28",
+        "clid": "\"89229954595\" <89229954595>",
+        "accountcode": "",
+        "src": "89229954595",
+        "dst": "2",
+        "channel": "SIP/MTS_1-0000001c",
+        "dstchannel": "PJSIP/21-00000075",
+        "dcontext": "ext-group",
+        "duration": "18",
+        "billsec": "18",
+        "disposition": "ANSWERED",
+        "src_ext": null,
+        "dst_ext": "21",
+        "src_trunk": "MTS_1",
+        "dst_trunk": null,
+        "recording_urls": [
+          "2025/06/04/in-3295001-89229954595-20250604-131826-1749032306.891.wav"
+        ]
+      }
+    ]
+  },
+  {
+    "linkedid": "1749032325.935",
+    "items": [
+      {
+        "uniqueid": "1749032325.935",
+        "linkedid": "1749032325.935",
+        "calldate": "2025-06-04 13:18:45",
+        "clid": "\"Дарья Душа\" <21>",
+        "accountcode": "",
+        "src": "21",
+        "dst": "10",
+        "channel": "PJSIP/21-0000007e",
+        "dstchannel": "PJSIP/10-0000007f",
+        "dcontext": "from-internal",
+        "duration": "2",
+        "billsec": "0",
+        "disposition": "NO ANSWER",
+        "src_ext": "21",
+        "dst_ext": "10",
+        "src_trunk": null,
+        "dst_trunk": null,
+        "recording_urls": [
+          "2025/06/04/internal-10-21-20250604-131845-1749032325.935.wav"
+        ]
+      },
+      {
+        "uniqueid": "1749032325.935",
+        "linkedid": "1749032325.935",
+        "calldate": "2025-06-04 13:18:45",
+        "clid": "\"Дарья Душа\" <21>",
+        "accountcode": "",
+        "src": "21",
+        "dst": "10",
+        "channel": "PJSIP/21-0000007e",
+        "dstchannel": "PJSIP/10-0000007f",
+        "dcontext": "from-internal",
+        "duration": "2",
+        "billsec": "0",
+        "disposition": "NO ANSWER",
+        "src_ext": "21",
+        "dst_ext": "10",
+        "src_trunk": null,
+        "dst_trunk": null,
+        "recording_urls": [
+          "2025/06/04/internal-10-21-20250604-131845-1749032325.935.wav"
+        ]
+      }
+    ]
+  }
+]
+
