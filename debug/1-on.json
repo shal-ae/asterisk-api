@@ -1,0 +1,77 @@
+{
+  "status": "OK",
+  "page": 1,
+  "per_page": 1000,
+  "total": 161,
+  "pages_count": 1,
+  "params": {
+    "date_from": "2025-06-04",
+    "date_to": "2025-06-04",
+    "src": "",
+    "dst": "",
+    "min_duration": null,
+    "answered": null,
+    "fields": "uniqueid, linkedid, calldate, clid, accountcode, src, dst, channel, dstchannel, dcontext, duration, billsec, disposition",
+    "keep_one_answered_for_uniqueid": true
+  },
+  "linkedIdMap": {
+    "1749032306.891": "1749032325.935",
+    "1749025627.610": "1749025601.566",
+    "1749025601.566": "1749025627.610",
+    "1749018583.89": "1749018620.137"
+  },
+  "content": [
+    {
+  "linkedid": "1749032325.935",
+  "items": [
+    {
+      "uniqueid": "1749032306.891",
+      "linkedid": "1749032306.891",
+      "calldate": "2025-06-04 13:18:28",
+      "clid": "\"89229954595\" <89229954595>",
+      "accountcode": "",
+      "src": "89229954595",
+      "dst": "2",
+      "channel": "SIP/MTS_1-0000001c",
+      "dstchannel": "PJSIP/21-00000075",
+      "dcontext": "ext-group",
+      "duration": "18",
+      "billsec": "18",
+      "disposition": "ANSWERED",
+      "src_ext": null,
+      "dst_ext": "21",
+      "src_trunk": "MTS_1",
+      "dst_trunk": null,
+      "recording_urls": [
+        "2025/06/04/in-3295001-89229954595-20250604-131826-1749032306.891.wav"
+      ],
+      "real_answered": false
+    },
+    {
+      "uniqueid": "1749032325.935",
+      "linkedid": "1749032325.935",
+      "calldate": "2025-06-04 13:18:45",
+      "clid": "\"Дарья Душа\" <21>",
+      "accountcode": "",
+      "src": "21",
+      "dst": "10",
+      "channel": "PJSIP/21-0000007e",
+      "dstchannel": "PJSIP/10-0000007f",
+      "dcontext": "from-internal",
+      "duration": "2",
+      "billsec": "0",
+      "disposition": "NO ANSWER",
+      "src_ext": "21",
+      "dst_ext": "10",
+      "src_trunk": null,
+      "dst_trunk": null,
+      "recording_urls": [
+        "2025/06/04/internal-10-21-20250604-131845-1749032325.935.wav"
+      ],
+      "real_answered": false
+    }
+  ]
+} ]
+}
+
+
