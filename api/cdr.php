@@ -1,15 +1,8 @@
 <?php
 
-// === НАСТРОЙКИ ===
-$configFile = __DIR__ . '/.api.env.php';
-if (!file_exists($configFile)) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Configuration file not found']);
-    exit;
-}
-$config = include $configFile;
+$config = include __DIR__ . '/.api.env.php';
 
-$validApiKey = $config['api_key'];
+//$validApiKey = $config['api_key'];
 $host = $config['db_host'] ?? 'localhost';
 $db = $config['db_name_cdr'] ?? 'asteriskcdrdb';
 $user = $config['db_user'] ?? 'freepbxuser';
@@ -17,14 +10,10 @@ $pass = $config['db_pass'];
 $baseDir = $config['recordings_path'];
 $order_direction = 'ASC';
 
+require_once __DIR__ . '/auth.php';
+
+check_auth($config['api_key']);
 // === АВТОРИЗАЦИЯ ===
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
-if (!preg_match('/Bearer\s+(.+)/', $authHeader, $matches) || $matches[1] !== $validApiKey) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
 
 // === ПАРАМЕТРЫ ЗАПРОСА ===
 $src = $_GET['src'] ?? '';
