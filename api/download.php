@@ -1,38 +1,16 @@
 <?php
-// === Совместимость с PHP 7 ===
-if (!function_exists('str_ends_with')) {
-    function str_ends_with($haystack, $needle)
-    {
-        return substr($haystack, -strlen($needle)) === $needle;
-    }
-}
 
-// === НАСТРОЙКИ ===
-$configFile = __DIR__ . '/.api.env.php';
-if (!file_exists($configFile)) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Configuration file not found']);
-    exit;
-}
-$config = include $configFile;
+$config = include __DIR__ . '/.api.env.php';
+require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/logic/utils.php';
 
-$validApiKey = $config['api_key'];
-$host = $config['db_host'] ?? 'localhost';
-$db = $config['db_name_cdr'] ?? 'asteriskcdrdb';
-$user = $config['db_user'] ?? 'freepbxuser';
-$pass = $config['db_pass'];
+check_auth($config['api_key']);
+$pdo = dbConnect($config);
+
 $baseDir = $config['recordings_path'];
-
 $convert = isset($_GET['convert-to-mp3']) && $_GET['convert-to-mp3'] == '1';
 $relPath = $_GET['file'] ?? '';
-
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
-if (!preg_match('/Bearer\s+(.+)/', $authHeader, $matches) || $matches[1] !== $validApiKey) {
-    http_response_code(401);
-    echo "Unauthorized";
-    exit;
-}
 
 if (!preg_match('#^[0-9]{4}/[0-9]{2}/[0-9]{2}/[-\w\.]+\.(wav|mp3)$#', $relPath)) {
     http_response_code(400);
@@ -61,8 +39,6 @@ if (
         echo json_encode(['error' => 'Conversion failed']);
         exit;
     }
-
-    $pdo = new PDO("mysql:host={$host};dbname={$db}", $user, $pass, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
 
     $stmt = $pdo->prepare("UPDATE cdr SET recordingfile = :new_file WHERE recordingfile = :old_file");
     $stmt->execute([

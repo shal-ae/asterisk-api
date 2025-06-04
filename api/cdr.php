@@ -1,19 +1,20 @@
 <?php
 
 $config = include __DIR__ . '/.api.env.php';
+require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/logic/linked-id-map.php';
+require_once __DIR__ . '/logic/fetch-cel.php';
+require_once __DIR__ . '/logic/fix-disposition.php';
+require_once __DIR__ . '/logic/utils.php';
+require_once __DIR__ . '/logic/keep-one-answered.php';
 
-//$validApiKey = $config['api_key'];
-$host = $config['db_host'] ?? 'localhost';
-$db = $config['db_name_cdr'] ?? 'asteriskcdrdb';
-$user = $config['db_user'] ?? 'freepbxuser';
-$pass = $config['db_pass'];
+check_auth($config['api_key']);
+$pdo = dbConnect($config);
+
 $baseDir = $config['recordings_path'];
 $order_direction = 'ASC';
 
-require_once __DIR__ . '/auth.php';
-
-check_auth($config['api_key']);
-// === АВТОРИЗАЦИЯ ===
 
 // === ПАРАМЕТРЫ ЗАПРОСА ===
 $src = $_GET['src'] ?? '';
@@ -26,136 +27,8 @@ $minDuration = isset($_GET['min_duration']) ? (int)$_GET['min_duration'] : null;
 $answered = isset($_GET['answered']) ? (int)$_GET['answered'] : null;
 $fieldset = $_GET['fieldset'] ?? ''; // all - для отладки
 $keep_one_answered_for_uniqueid = isset($_GET['keep_one_answered_for_uniqueid']) && ($_GET['keep_one_answered_for_uniqueid'] === '1');
-
 $offset = ($page - 1) * $perPage;
 
-function extractExtension($channel)
-{
-    if (preg_match('/(?:SIP|PJSIP|Local)\/(\d+)(?:\-|\/)/', $channel, $m)) {
-        return $m[1];
-    }
-    return null;
-}
-
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$db", $user, $pass);
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'DB connection failed']);
-    exit;
-}
-
-function getTrunkNameFromChannel($channel)
-{
-    if (preg_match('/^(SIP|PJSIP|DAHDI|IAX2)\\/([\\w\\-\\.]+?)-\\w+$/', $channel, $m)) {
-        $name = $m[2];
-        if (!preg_match('/^\\d{2,6}$/', $name)) {
-            return $name;
-        }
-    }
-    return null;
-}
-
-function buildLinkedIdMapUnified(array $rows): array
-{
-    $map = [];
-
-    // 1. Через ATTENDEDTRANSFER / BLINDTRANSFER / PARK_END
-    foreach ($rows as $row) {
-        if (in_array($row['eventtype'], ['ATTENDEDTRANSFER', 'BLINDTRANSFER', 'PARK_END'])) {
-            $child = $row['peer'] ?? '';
-            $parent = $row['linkedid'] ?? '';
-            if ($child && $parent && $child !== $parent) {
-                $map[$child] = $parent;
-            }
-        }
-    }
-
-    // 2. Через связи peer → channame (fallback)
-    $chanLinkedMap = [];
-    $peerToChan = [];
-
-    foreach ($rows as $row) {
-        $chan = $row['channame'] ?? '';
-        $peer = $row['peer'] ?? '';
-        $linkedid = $row['linkedid'] ?? '';
-
-        if ($chan && $linkedid) {
-            $chanLinkedMap[$chan] = $linkedid;
-        }
-
-        if ($peer && $chan) {
-            $peerToChan[$peer][] = $chan;
-        }
-    }
-
-    foreach ($peerToChan as $peer => $chans) {
-        if (!isset($chanLinkedMap[$peer])) continue;
-        $parent = $chanLinkedMap[$peer];
-
-        foreach ($chans as $chan) {
-            if (!isset($chanLinkedMap[$chan])) continue;
-            $child = $chanLinkedMap[$chan];
-            if ($child !== $parent && !isset($map[$child])) {
-                $map[$child] = $parent;
-            }
-        }
-    }
-
-    return $map;
-}
-
-function fetchCelRowsByLinkedIds(PDO $pdo, array $linkedids): array
-{
-    if (empty($linkedids)) {
-        return [];
-    }
-
-    // Подготовим плейсхолдеры
-    $placeholders = [];
-    $params = [];
-    foreach ($linkedids as $i => $id) {
-        $ph = ":id$i";
-        $placeholders[] = $ph;
-        $params[$ph] = $id;
-    }
-
-    $sql = "
-        SELECT
-            id, eventtime, eventtype, linkedid, uniqueid, channame, peer, cid_num, cid_name, context, exten, appname        FROM cel
-        WHERE linkedid IN (" . implode(', ', $placeholders) . ")
-        ORDER BY eventtime DESC
-    ";
-
-    $stmt = $pdo->prepare($sql);
-    foreach ($params as $ph => $val) {
-        $stmt->bindValue($ph, $val);
-    }
-    $stmt->execute();
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
-}
-
-/**
- * Возвращает "нормализованный" linkedid (корень цепочки)
- *
- * @param array $linkedIdMap
- * @param string $linkedid
- * @return string
- */
-function normalize_linkedId(array $linkedIdMap, string $linkedid): string
-{
-    $visited = [];
-    while (isset($linkedIdMap[$linkedid])) {
-        if (in_array($linkedid, $visited)) {
-            // Предотвращаем бесконечный цикл
-            break;
-        }
-        $visited[] = $linkedid;
-        $linkedid = $linkedIdMap[$linkedid];
-    }
-
-    return $linkedid;
-}
 
 // === SQL ===
 $sqlWhere = "WHERE 1=1";
@@ -212,6 +85,7 @@ $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
 $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Дозаполняем, ищем файлы записей
 foreach ($results as &$row) {
     $uniqueid = $row['uniqueid'];
     $row['src_ext'] = extractExtension($row['channel']);
@@ -237,7 +111,7 @@ foreach ($results as &$row) {
 
 // Сбор уникальных linkedid из результатов
 $linkedIds = [];
-foreach ($results as $row) {
+foreach ($results as &$row) {
     if (!empty($row['linkedid'])) {
         $linkedIds[] = $row['linkedid'];
     }
@@ -273,199 +147,13 @@ foreach ($grouped as $linkedid => $records) {
     ];
 }
 
-
 // === Коррекция disposition и billsec на основе CEL ===
-foreach ($groupedArray as &$group) {
-    foreach ($group['items'] as &$item) {
-        $uid = $item['uniqueid'];
-        $events = $celByUniqueid[$uid] ?? [];
 
-        $start = null;
-        $end = null;
-        $hasRealAnswer = false;
-
-        foreach ($events as $ev) {
-            if ($ev['eventtype'] === 'ANSWER') {
-                $hasRealAnswer = true;
-            }
-            if ($ev['eventtype'] === 'BRIDGE_ENTER') {
-                $start = strtotime($ev['eventtime']);
-            } elseif ($ev['eventtype'] === 'BRIDGE_EXIT') {
-                $end = strtotime($ev['eventtime']);
-            }
-        }
-
-        $realBillsec = ($start && $end && $end > $start && $hasRealAnswer) ? ($end - $start) : 0;
-
-        if ($realBillsec > 0) {
-            $item['disposition'] = 'ANSWERED';
-            $item['billsec'] = $realBillsec;
-            $item['real_answered'] = true;
-        } else {
-            $item['real_answered'] = false;
-        }
-    }
-    unset($item);
-}
-
+//fixDispositionFromCEL($groupedArray, $celRows);
 
 // === Финальная фильтрация по uniqueid внутри каждой группы linkedid ===
 if ($keep_one_answered_for_uniqueid) {
-    // Строим массив отвеченных uniqueid
-    $answeredIds = [];
-    $answered = [];
-    foreach ($groupedArray as &$group) {
-        foreach ($group['items'] as $item) {
-            $uid = $item['uniqueid'];
-            if ((($item['disposition'] ?? '') === 'ANSWERED') && !isset($answered[$uid])) {
-                $answeredIds[] = $uid;
-                $answered[$uid] = true;
-            }
-        }
-    }
-
-    foreach ($groupedArray as &$group) {
-        $filteredItems = [];
-        foreach ($group['items'] as $item) {
-            $uid = $item['uniqueid'];
-
-            if (isset($answered[$uid]) && (($item['disposition'] ?? '') !== 'ANSWERED')) {
-                continue;
-            } else {
-                $filteredItems[] = $item;
-            }
-        }
-        $group['items'] = $filteredItems;
-    }
-    unset($group); // good practice with references
-}
-
-//if ($keep_one_answered_for_uniqueid) {
-//    foreach ($groupedArray as &$group) {
-//        $byDst = [];
-//
-//        // группируем по dst_ext
-//        foreach ($group['items'] as $item) {
-//            $dst = $item['dst_ext'] ?? $item['dstchannel'] ?? 'unknown';
-//            if (!isset($byDst[$dst])) {
-//                $byDst[$dst] = [];
-//            }
-//            $byDst[$dst][] = $item;
-//        }
-//
-//        $filteredItems = [];
-//
-//        foreach ($byDst as $dst => $records) {
-//            $hasAnswered = false;
-//            foreach ($records as $r) {
-//                if (($r['disposition'] ?? '') === 'ANSWERED') {
-//                    $hasAnswered = true;
-//                    break;
-//                }
-//            }
-//
-//            if ($hasAnswered) {
-//                foreach ($records as $r) {
-//                    if (($r['disposition'] ?? '') === 'ANSWERED') {
-//                        $filteredItems[] = $r;
-//                    }
-//                }
-//            } else {
-//                $filteredItems = array_merge($filteredItems, $records);
-//            }
-//        }
-//
-//        $group['items'] = $filteredItems;
-//    }
-//    unset($group);
-//}
-//
-//
-//if ($keep_one_answered_for_uniqueid) {
-//    // Строим массив отвеченных uniqueid
-//    $answeredIds = [];
-//    $answered = [];
-//    foreach ($groupedArray as &$group) {
-//        foreach ($group['items'] as $item) {
-//            $uid = $item['uniqueid'];
-//            if ((($item['disposition'] ?? '') === 'ANSWERED') && !isset($answered[$uid])) {
-//                $answeredIds[] = $uid;
-//                $answered[$uid] = $item;
-//            }
-//        }
-//    }
-//
-//    $alreadyIncluded = [];
-//    foreach ($groupedArray as &$group) {
-//        $filteredItems = [];
-//        foreach ($group['items'] as $item) {
-//            $uid = $item['uniqueid'];
-//            $isAnswered = ($item['disposition'] ?? '') === 'ANSWERED';
-//
-//            if (isset($answered[$uid])) {
-//                if ($isAnswered && !isset($alreadyIncluded[$uid])) {
-//                    $filteredItems[] = $item;
-//                    $alreadyIncluded[$uid] = true;
-//                }
-//                // иначе — пропускаем все другие записи с этим uniqueid
-//            } else {
-//                // если нет ни одного ANSWERED — оставляем всё
-//                $filteredItems[] = $item;
-//            }
-//
-////            if (isset($answered[$uid]) && (($item['disposition'] ?? '') !== 'ANSWERED')) {
-////                continue;
-////            } else {
-////                $filteredItems[] = $item;
-////            }
-//        }
-//        $group['items'] = $filteredItems;
-//    }
-//    unset($group); // good practice with references
-//}
-//
-//if ($keep_one_answered_for_uniqueid && false) {
-//
-//
-//    foreach ($groupedArray as &$group) {
-//        $byUniqueid = [];
-//        foreach ($group['items'] as $item) {
-//            $uid = $item['uniqueid'];
-//            if (!isset($byUniqueid[$uid])) {
-//                $byUniqueid[$uid] = [];
-//            }
-//            $byUniqueid[$uid][] = $item;
-//        }
-//
-//        $filteredItems = [];
-//        foreach ($byUniqueid as $uid => $records) {
-//            // Сортируем, чтобы приоритет был у disposition = ANSWERED, потом по billsec, потом по calldate
-//            usort($records, function ($a, $b) {
-//                $dispA = ($a['disposition'] === 'ANSWERED') ? 0 : 1;
-//                $dispB = ($b['disposition'] === 'ANSWERED') ? 0 : 1;
-//                if ($dispA !== $dispB) return $dispA - $dispB;
-//
-//                $bsA = (int)($a['billsec'] ?? 0);
-//                $bsB = (int)($b['billsec'] ?? 0);
-//                if ($bsA !== $bsB) return $bsB - $bsA;
-//
-//                return strcmp($b['calldate'], $a['calldate']);
-//            });
-//
-//            $filteredItems[] = $records[0]; // только одна лучшая запись
-//        }
-//
-//        $group['items'] = $filteredItems;
-//    }
-//    unset($group);
-//}
-
-$linkedidArray = [];  // Убираем ключи для вывода в 1С
-foreach ($linkedIdMap as $id1 => $id2) {
-    $linkedidArray[] = [
-        'id1' => $id1,
-        'id2' => $id2
-    ];
+    keepOneAnswered($groupedArray);
 }
 
 header('Content-Type: application/json');
@@ -484,7 +172,7 @@ echo json_encode([
         'fields' => $fields,
         'keep_one_answered_for_uniqueid' => $keep_one_answered_for_uniqueid
     ],
-    'linkedIdArray' => $linkedidArray,
+    'linkedIdArray' => linkedArrayByMap($linkedIdMap),
     'content' => $groupedArray
 ], JSON_PRETTY_PRINT);
 

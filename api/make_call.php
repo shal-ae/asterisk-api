@@ -1,26 +1,13 @@
 <?php
-// === НАСТРОЙКИ ===
-$configFile = __DIR__ . '/.api.env.php';
-if (!file_exists($configFile)) {
-    http_response_code(500);
-    echo json_encode(['error' => 'Configuration file not found']);
-    exit;
-}
-$config = include $configFile;
 
-$validApiKey = $config['api_key'];
+$config = include __DIR__ . '/.api.env.php';
+require_once __DIR__ . '/inc/auth.php';
+
+check_auth($config['api_key']);
+
 $outgoingDir = $config['outgoing_path'];
 $tempDir = $config['outgoing_temp_path'];
 $context = $config['outgoing_context'];
-
-// === АВТОРИЗАЦИЯ ===
-$headers = getallheaders();
-$authHeader = $headers['Authorization'] ?? '';
-if (!preg_match('/Bearer\s+(.+)/', $authHeader, $matches) || $matches[1] !== $validApiKey) {
-    http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
-    exit;
-}
 
 // === ПАРАМЕТРЫ ===
 $from = $_GET['from'] ?? '';
