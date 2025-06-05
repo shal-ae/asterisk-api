@@ -108,10 +108,11 @@ foreach ($results as &$row) {
 
     $row['recording_urls'] = $recordingFiles;
 }
+unset($row);
 
 // Сбор уникальных linkedid из результатов
 $linkedIds = [];
-foreach ($results as &$row) {
+foreach ($results as $row) {
     if (!empty($row['linkedid'])) {
         $linkedIds[] = $row['linkedid'];
     }
@@ -124,7 +125,7 @@ $celRows = fetchCelRowsByLinkedIds($pdo, $linkedIds);
 $linkedIdMap = buildLinkedIdMapUnified($celRows);
 
 $grouped = [];
-foreach ($results as &$row) {
+foreach ($results as $row) {
     $uniqueid = $row['uniqueid'];
     $linkedid = $row['linkedid'] ?? $uniqueid; // хотя ни разу не был пустой
 
@@ -139,10 +140,10 @@ foreach ($results as &$row) {
 unset($row);
 
 $groupedArray = [];
-foreach ($grouped as $linkedid => $records) {
+foreach ($grouped as $linkedid => $recs) {
     $groupedArray[] = [
         'linkedid' => $linkedid,
-        'items' => $records
+        'items' => $recs
     ];
 }
 
