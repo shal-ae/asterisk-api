@@ -120,14 +120,12 @@ $linkedIds = array_unique($linkedIds);
 
 // Получаем CEL данные
 $celRows = fetchCelRowsByLinkedIds($pdo, $linkedIds);
-
 // Получаем соответствия
 $linkedIdMap = buildLinkedIdMapUnified($celRows);
 
 $grouped = [];
-foreach ($results as $row) {
+foreach ($results as &$row) {
     $uniqueid = $row['uniqueid'];
-
     $linkedid = $row['linkedid'] ?? $uniqueid; // хотя ни разу не был пустой
 
     // Нормализуем linkedid через цепочку трансферов
@@ -138,6 +136,7 @@ foreach ($results as $row) {
     }
     $grouped[$normalized][] = $row;
 }
+unset($row);
 
 $groupedArray = [];
 foreach ($grouped as $linkedid => $records) {
@@ -149,7 +148,7 @@ foreach ($grouped as $linkedid => $records) {
 
 // === Коррекция disposition и billsec на основе CEL ===
 
-//fixDispositionFromCEL($groupedArray, $celRows);
+fixDispositionFromCEL($groupedArray, $celRows);
 
 // === Финальная фильтрация по uniqueid внутри каждой группы linkedid ===
 if ($keep_one_answered_for_uniqueid) {
@@ -157,6 +156,8 @@ if ($keep_one_answered_for_uniqueid) {
 }
 
 header('Content-Type: application/json');
+header('Expires: 0');
+header('Cache-Control: must-revalidate');
 echo json_encode([
     'status' => 'OK',
     'page' => $page,
