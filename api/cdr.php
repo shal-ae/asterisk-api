@@ -148,8 +148,8 @@ foreach ($grouped as $linkedid => $recs) {
 }
 
 // === Коррекция disposition и billsec на основе CEL ===
-
-fixDispositionFromCEL($groupedArray, $celRows);
+$markedAnsweredCount = 0;
+//$markedAnsweredCount = fixDispositionFromCEL($groupedArray, $celRows);
 
 // === Финальная фильтрация по uniqueid внутри каждой группы linkedid ===
 if ($keep_one_answered_for_uniqueid) {
@@ -174,6 +174,7 @@ echo json_encode([
         'fields' => $fields,
         'keep_one_answered_for_uniqueid' => $keep_one_answered_for_uniqueid
     ],
+    'markedAnsweredCount' => $markedAnsweredCount,
     'linkedIdArray' => linkedArrayByMap($linkedIdMap),
     'content' => $groupedArray
 ], JSON_PRETTY_PRINT);

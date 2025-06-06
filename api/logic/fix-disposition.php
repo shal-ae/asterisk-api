@@ -3,6 +3,7 @@
 // === Коррекция disposition и billsec на основе CEL ===
 function fixDispositionFromCEL(array &$groupedArray, array $celRows)
 {
+    $res = 0;
     $celByUniqueid = [];
     foreach ($celRows as $row) {
         $uid = $row['uniqueid'];
@@ -19,6 +20,7 @@ function fixDispositionFromCEL(array &$groupedArray, array $celRows)
         foreach ($group['items'] as &$item) {
             $uid = $item['uniqueid'];
             $events = $celByUniqueid[$uid] ?? [];
+ //           $item['events'] = $events;
 
             $hasAnswer = false;
             $bridgeEnter = null;
@@ -48,6 +50,9 @@ function fixDispositionFromCEL(array &$groupedArray, array $celRows)
                 );
 
             if (!$marked && $hasAnswer && $isMatchedChannel && $billsec >= $minBillDuration) {
+                if ($item['disposition'] !== 'ANSWERED') {
+                    $res++;
+                }
                 $item['disposition'] = 'ANSWERED';
                 $item['billsec'] = $billsec;
                 $item['real_answered'] = true;
@@ -60,6 +65,7 @@ function fixDispositionFromCEL(array &$groupedArray, array $celRows)
         }
         unset($item);
     }
+    return $res;
 }
 
 function fixDispositionFromCEL11(array &$groupedArray, array $celRows)
