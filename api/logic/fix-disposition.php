@@ -1,5 +1,7 @@
 <?php
-
+//
+//--------------  Осторожно, это эвристика ---------------------------------
+//
 // === Коррекция disposition и billsec на основе CEL ===
 function fixDispositionFromCEL(array &$groupedArray, array $celRows): int
 {

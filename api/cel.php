@@ -1,21 +1,14 @@
 <?php
-// Подключение к базе данных FreePBX (настрой — если отличается)
-$host = 'localhost';
-$dbname = 'asteriskcdrdb';
-$user = 'freepbxuser';
-$pass = '492771210fa3a3dc478adeb9403615e9';
+
+$config = include __DIR__ . '/.api.env.php';
+require_once __DIR__ . '/inc/db.php';
+require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/logic/linked-id-map.php';
+
+check_auth($config['api_key']);
+$pdo = dbConnect($config);
 
 header('Content-Type: application/json');
-
-try {
-    $pdo = new PDO("mysql:host=$host;dbname=$dbname;charset=utf8", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION
-    ]);
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo json_encode(['error' => 'DB connection failed', 'message' => $e->getMessage()]);
-    exit;
-}
 
 // Опциональные параметры ?limit=100&start=2025-06-04 00:00:00&end=2025-06-04 23:59:59
 $limit = isset($_GET['limit']) ? intval($_GET['limit']) : 100;
@@ -63,47 +56,7 @@ try {
 
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-
-    function buildLinkedIdMapFromPeerRelations(array $rows): array
-    {
-        $chanLinkedMap = [];     // channame => linkedid
-        $peerToChan = [];        // peer => channame
-        $linkedIdMap = [];
-
-        foreach ($rows as $row) {
-            $chan = $row['channame'] ?? '';
-            $peer = $row['peer'] ?? '';
-            $linkedid = $row['linkedid'] ?? '';
-
-            if ($chan && $linkedid) {
-                $chanLinkedMap[$chan] = $linkedid;
-            }
-
-            if ($peer && $chan) {
-                $peerToChan[$peer][] = $chan;
-            }
-        }
-
-        // Найдём связи по паре peer => channame
-        foreach ($peerToChan as $peer => $chans) {
-            if (!isset($chanLinkedMap[$peer])) {
-                continue; // peer канал не стартовал — игнорируем
-            }
-            $parentLinkedid = $chanLinkedMap[$peer];
-            foreach ($chans as $childChan) {
-                if (isset($chanLinkedMap[$childChan])) {
-                    $childLinkedid = $chanLinkedMap[$childChan];
-                    if ($childLinkedid !== $parentLinkedid) {
-                        $linkedIdMap[$childLinkedid] = $parentLinkedid;
-                    }
-                }
-            }
-        }
-
-        return $linkedIdMap;
-    }
-
-    $linkedIdMap = buildLinkedIdMapFromPeerRelations($rows);
+    $linkedIdMap = buildLinkedIdMapUnified($rows);
 
     echo json_encode([
         'count' => count($rows),

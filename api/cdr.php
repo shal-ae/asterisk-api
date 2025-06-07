@@ -15,7 +15,6 @@ $pdo = dbConnect($config);
 $baseDir = $config['recordings_path'];
 $order_direction = 'ASC';
 
-
 // === ПАРАМЕТРЫ ЗАПРОСА ===
 $src = $_GET['src'] ?? '';
 $dst = $_GET['dst'] ?? '';
@@ -23,11 +22,16 @@ $dateFrom = $_GET['date_from'] ?? '';
 $dateTo = $_GET['date_to'] ?? '';
 $page = max(1, (int)($_GET['page'] ?? 1));
 $perPage = max(1, min(1000, (int)($_GET['per_page'] ?? 100)));
+$offset = ($page - 1) * $perPage;
 $minDuration = isset($_GET['min_duration']) ? (int)$_GET['min_duration'] : null;
 $answered = isset($_GET['answered']) ? (int)$_GET['answered'] : null;
-$fieldset = $_GET['fieldset'] ?? ''; // all - для отладки
 $keep_one_answered_for_uniqueid = isset($_GET['keep_one_answered_for_uniqueid']) && ($_GET['keep_one_answered_for_uniqueid'] === '1');
-$offset = ($page - 1) * $perPage;
+$skip_no_answer_internal = isset($_GET['skip_no_answer_internal']) && ($_GET['skip_no_answer_internal'] === '1');
+$internal_only_answered = isset($_GET['internal_only_answered']) && ($_GET['internal_only_answered'] === '1');
+$use_cel = isset($_GET['use_cel']) && ($_GET['use_cel'] === '1');
+$fieldset = $_GET['fieldset'] ?? ''; // all - для отладки
+
+// осторожно, евристика!
 $fix_disposition = isset($_GET['fix_disposition']) && ($_GET['fix_disposition'] === '1');
 
 
@@ -84,10 +88,10 @@ foreach ($params as $key => $value) {
 $stmt->bindValue(':limit', $perPage, PDO::PARAM_INT);
 $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
 $stmt->execute();
-$results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$db_results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 // Дозаполняем, ищем файлы записей
-foreach ($results as &$row) {
+foreach ($db_results as &$row) {
     $uniqueid = $row['uniqueid'];
     $row['src_ext'] = extractExtension($row['channel']);
     $row['dst_ext'] = extractExtension($row['dstchannel']);
@@ -111,6 +115,21 @@ foreach ($results as &$row) {
 }
 unset($row);
 
+// Фильтруем выборку
+$results = [];
+foreach ($db_results as $row) {
+    if (is_null($row['src_trunk']) && is_null($row['dst_trunk'])) {
+        if ($skip_no_answer_internal && $row['disposition'] === 'NO ANSWER') {
+            continue;
+        }
+        if ($internal_only_answered && $row['disposition'] !== 'ANSWERED') {
+            continue;
+        }
+    }
+    $results[] = $row;
+}
+unset($row);
+
 // Сбор уникальных linkedid из результатов
 $linkedIds = [];
 foreach ($results as $row) {
@@ -121,7 +140,8 @@ foreach ($results as $row) {
 $linkedIds = array_unique($linkedIds);
 
 // Получаем CEL данные
-$celRows = fetchCelRowsByLinkedIds($pdo, $linkedIds);
+$celRows = $use_cel ? fetchCelRowsByLinkedIds($pdo, $linkedIds) : [];
+
 // Получаем соответствия
 $linkedIdMap = buildLinkedIdMapUnified($celRows);
 
