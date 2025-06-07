@@ -29,7 +29,7 @@ $params = [
 ];
 
 $linkedids = isset($_GET['linkedid']) ? (array)$_GET['linkedid'] : [];
-$linkedids = array_filter($linkedids, function($id) {
+$linkedids = array_filter($linkedids, function ($id) {
     return trim($id) !== '';
 });
 // Фильтр по linkedid[]
@@ -46,7 +46,7 @@ if (!empty($linkedids)) {
 
 $sql = "
     SELECT
-        id, eventtime, eventtype, linkedid, uniqueid, channame, peer, cid_num, cid_name, context, exten, appname
+        id, eventtime, eventtype, linkedid, uniqueid, channame, peer, cid_num, cid_name, context
     FROM cel
     WHERE $where
     ORDER BY eventtime DESC
@@ -64,7 +64,8 @@ try {
     $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 
-    function buildLinkedIdMapFromPeerRelations(array $rows): array {
+    function buildLinkedIdMapFromPeerRelations(array $rows): array
+    {
         $chanLinkedMap = [];     // channame => linkedid
         $peerToChan = [];        // peer => channame
         $linkedIdMap = [];

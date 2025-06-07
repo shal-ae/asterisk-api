@@ -28,6 +28,7 @@ $answered = isset($_GET['answered']) ? (int)$_GET['answered'] : null;
 $fieldset = $_GET['fieldset'] ?? ''; // all - для отладки
 $keep_one_answered_for_uniqueid = isset($_GET['keep_one_answered_for_uniqueid']) && ($_GET['keep_one_answered_for_uniqueid'] === '1');
 $offset = ($page - 1) * $perPage;
+$fix_disposition = isset($_GET['fix_disposition']) && ($_GET['fix_disposition'] === '1');
 
 
 // === SQL ===
@@ -149,7 +150,9 @@ foreach ($grouped as $linkedid => $recs) {
 
 // === Коррекция disposition и billsec на основе CEL ===
 $markedAnsweredCount = 0;
-//$markedAnsweredCount = fixDispositionFromCEL($groupedArray, $celRows);
+if ($fix_disposition) {
+    $markedAnsweredCount = fixDispositionFromCEL($groupedArray, $celRows);
+}
 
 // === Финальная фильтрация по uniqueid внутри каждой группы linkedid ===
 if ($keep_one_answered_for_uniqueid) {

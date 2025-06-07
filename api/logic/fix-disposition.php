@@ -1,7 +1,69 @@
 <?php
 
 // === Коррекция disposition и billsec на основе CEL ===
-function fixDispositionFromCEL(array &$groupedArray, array $celRows)
+function fixDispositionFromCEL(array &$groupedArray, array $celRows): int
+{
+    $res = 0;
+
+    $minBillDuration = 1;
+
+    foreach ($groupedArray as &$group) {
+        foreach ($group['items'] as &$item) {
+            if ($item['disposition'] !== 'NO ANSWER' || $item['linkedid'] !== $item['uniqueid'] ||
+                $item['src'] !== $item['src_ext'] || $item['dst'] !== $item['dst_ext']) {
+                continue;
+            };
+
+            $uniqueIds = [];
+            foreach ($celRows as $celRow) {
+                if ($celRow['linkedid'] === $item['linkedid']) {
+                    $uniqueIds[] = $celRow['uniqueid'];
+                }
+            }
+            unset($celRow);
+            $uniqueIds = array_unique($uniqueIds);
+
+            $events = [];
+            foreach ($celRows as $celRow) {
+                if (in_array($celRow['uniqueid'], $uniqueIds) && $celRow['cid_num'] === $item['dst']) {
+                    $events[] = $celRow;
+                }
+            }
+
+            $hasAnswer = false;
+            $bridgeEnter = null;
+            $bridgeExit = null;
+
+            foreach ($events as $ev) {
+                if ($ev['eventtype'] === 'ANSWER') {
+                    $hasAnswer = true;
+                }
+                if ($ev['eventtype'] === 'BRIDGE_ENTER') {
+                    $bridgeEnter = strtotime($ev['eventtime']);
+                }
+                if ($ev['eventtype'] === 'BRIDGE_EXIT') {
+                    $bridgeExit = strtotime($ev['eventtime']);
+                }
+            }
+
+            $billsec = ($bridgeEnter && $bridgeExit && $bridgeExit > $bridgeEnter) ? ($bridgeExit - $bridgeEnter) : 0;
+
+            if ($hasAnswer && $billsec >= $minBillDuration) {
+                $res++;
+                $item['disposition'] = 'ANSWERED';
+                $item['billsec'] = $billsec;
+                $item['duration'] = ($item['duration'] ?? 0) + $billsec;
+                $item['cel_answered'] = false;
+            }
+        }
+
+    }
+
+    return $res;
+}
+
+// === Коррекция disposition и billsec на основе CEL ===
+function fixDispositionFromCEL33(array &$groupedArray, array $celRows): int
 {
     $res = 0;
     $celByUniqueid = [];
@@ -20,7 +82,7 @@ function fixDispositionFromCEL(array &$groupedArray, array $celRows)
         foreach ($group['items'] as &$item) {
             $uid = $item['uniqueid'];
             $events = $celByUniqueid[$uid] ?? [];
- //           $item['events'] = $events;
+            //           $item['events'] = $events;
 
             $hasAnswer = false;
             $bridgeEnter = null;
