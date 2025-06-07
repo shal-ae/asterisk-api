@@ -1,0 +1,408 @@
+{
+  "info": {
+    "_postman_id": "c3164650-beed-4e75-b0cd-f389e1319fa3",
+    "name": "Asterisk",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "13327850"
+  },
+  "item": [
+    {
+      "name": "download",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{API_KEY}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/api/download.php?file=2025/05/29/external-10-89229954595-20250529-132352-1748514232.3898.wav",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "download.php"
+          ],
+          "query": [
+            {
+              "key": "file",
+              "value": "2025/05/29/external-10-89229954595-20250529-132352-1748514232.3898.wav"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "cdr",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var template = `\r",
+              "<style type=\"text/css\">\r",
+              "    .tftable {font-size:14px;color:#333333;width:100%;border-width: 1px;border-color: #87ceeb;border-collapse: collapse;}\r",
+              "    .tftable th {font-size:18px;background-color:#87ceeb;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;text-align:left;}\r",
+              "    .tftable tr {background-color:#ffffff;}\r",
+              "    .tftable td {font-size:14px;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;}\r",
+              "    .tftable tr:hover {background-color:#e0ffff;}\r",
+              "</style>\r",
+              "\r",
+              "<table class=\"tftable\" border=\"1\">\r",
+              "    <tr>\r",
+              "        <th>Gr Linked ID</th>\r",
+              "        <th>Linked ID</th>\r",
+              "        <th>Unique ID</th>\r",
+              "        <th>Call Date</th>\r",
+              "        <th>Source</th>\r",
+              "        <th>Destination</th>\r",
+              "        <th>Duration</th>\r",
+              "        <th>Disposition</th>\r",
+              "        <th>src_ext</th>\r",
+              "        <th>dst_ext</th>\r",
+              "        <th>src_trunk</th>\r",
+              "        <th>dst_trunk</th>\r",
+              "    </tr>\r",
+              "    \r",
+              "    {{#each response.content}}\r",
+              "        {{#each items}}\r",
+              "            <tr>\r",
+              "                <td>{{../linkedid}}</td>\r",
+              "                <td>{{linkedid}}</td>\r",
+              "                <td>{{uniqueid}}</td>\r",
+              "                <td>{{calldate}}</td>\r",
+              "                <td>{{src}}</td>\r",
+              "                <td>{{dst}}</td>\r",
+              "                <td>{{duration}}</td>\r",
+              "                <td>{{disposition}}</td>\r",
+              "                <td>{{src_ext}}</td>\r",
+              "                <td>{{dst_ext}}</td>\r",
+              "                <td>{{src_trunk}}</td>\r",
+              "                <td>{{dst_trunk}}</td>\r",
+              "            </tr>\r",
+              "        {{/each}}\r",
+              "    {{/each}}\r",
+              "</table>\r",
+              "`;\r",
+              "\r",
+              "function constructVisualizerPayload() {\r",
+              "    return { response: pm.response.json() };\r",
+              "}\r",
+              "\r",
+              "pm.visualizer.set(template, constructVisualizerPayload());"
+            ],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{API_KEY}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/api/cdr.php?date_from=2025-06-07&date_to=2025-06-07&per_page=1000&keep_one_answered_for_uniqueid=1&internal_only_answered=1&use_cel=0",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "cdr.php"
+          ],
+          "query": [
+            {
+              "key": "date_from",
+              "value": "2025-06-07"
+            },
+            {
+              "key": "date_to",
+              "value": "2025-06-07"
+            },
+            {
+              "key": "per_page",
+              "value": "1000"
+            },
+            {
+              "key": "keep_one_answered_for_uniqueid",
+              "value": "1"
+            },
+            {
+              "key": "internal_only_answered",
+              "value": "1"
+            },
+            {
+              "key": "use_cel",
+              "value": "0"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "account",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var template = `\r",
+              "<style type=\"text/css\">\r",
+              "    .tftable {font-size:14px;color:#333333;width:100%;border-width: 1px;border-color: #87ceeb;border-collapse: collapse;}\r",
+              "    .tftable th {font-size:18px;background-color:#87ceeb;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;text-align:left;}\r",
+              "    .tftable tr {background-color:#ffffff;}\r",
+              "    .tftable td {font-size:14px;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;}\r",
+              "    .tftable tr:hover {background-color:#e0ffff;}\r",
+              "</style>\r",
+              "\r",
+              "<table class=\"tftable\" border=\"1\">\r",
+              "    <tr>\r",
+              "        <th>Extension</th>\r",
+              "        <th>Name</th>\r",
+              "    </tr>\r",
+              "    \r",
+              "    {{#each response.extensions}}\r",
+              "        <tr>\r",
+              "            <td>{{extension}}</td>\r",
+              "            <td>{{name}}</td>\r",
+              "        </tr>\r",
+              "    {{/each}}\r",
+              "</table>\r",
+              "`;\r",
+              "\r",
+              "function constructVisualizerPayload() {\r",
+              "    return { response: pm.response.json() };\r",
+              "}\r",
+              "\r",
+              "pm.visualizer.set(template, constructVisualizerPayload());"
+            ],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{API_KEY}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/api/account.php",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "account.php"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "make-call",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{API_KEY}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/api/make_call.php?from=30&to=89229954595",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "make_call.php"
+          ],
+          "query": [
+            {
+              "key": "from",
+              "value": "30"
+            },
+            {
+              "key": "to",
+              "value": "89229954595"
+            }
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "cel",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var template = `\r",
+              "<style type=\"text/css\">\r",
+              "    .tftable {font-size:14px;color:#333333;width:100%;border-width: 1px;border-color: #87ceeb;border-collapse: collapse;}\r",
+              "    .tftable th {font-size:18px;background-color:#87ceeb;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;text-align:left;}\r",
+              "    .tftable tr {background-color:#ffffff;}\r",
+              "    .tftable td {font-size:14px;border-width: 1px;padding: 8px;border-style: solid;border-color: #87ceeb;}\r",
+              "    .tftable tr:hover {background-color:#e0ffff;}\r",
+              "</style>\r",
+              "\r",
+              "<table class=\"tftable\" border=\"1\">\r",
+              "    <tr>\r",
+              "        <th>ID</th>\r",
+              "        <th>Event Time</th>\r",
+              "        <th>Event Type</th>\r",
+              "        <th>Linked ID</th>\r",
+              "        <th>Unique ID</th>\r",
+              "        <th>Channel Name</th>\r",
+              "        <th>Peer</th>\r",
+              "        <th>CID Number</th>\r",
+              "        <th>CID Name</th>\r",
+              "        <th>Context</th>\r",
+              "    </tr>\r",
+              "    \r",
+              "    {{#each response.data}}\r",
+              "        <tr>\r",
+              "            <td>{{id}}</td>\r",
+              "            <td>{{eventtime}}</td>\r",
+              "            <td>{{eventtype}}</td>\r",
+              "            <td>{{linkedid}}</td>\r",
+              "            <td>{{uniqueid}}</td>\r",
+              "            <td>{{channame}}</td>\r",
+              "            <td>{{peer}}</td>\r",
+              "            <td>{{cid_num}}</td>\r",
+              "            <td>{{cid_name}}</td>\r",
+              "            <td>{{context}}</td>\r",
+              "        </tr>\r",
+              "    {{/each}}\r",
+              "</table>\r",
+              "`;\r",
+              "\r",
+              "function constructVisualizerPayload() {\r",
+              "    return {response: pm.response.json()};\r",
+              "}\r",
+              "\r",
+              "pm.visualizer.set(template, constructVisualizerPayload());"
+            ],
+            "type": "text/javascript",
+            "packages": {}
+          }
+        }
+      ],
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{API_KEY}}",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{BASE_URL}}/api/cel.php?limit=1000&start=2025-06-07&end=2025-06-07 23:59:59",
+          "host": [
+            "{{BASE_URL}}"
+          ],
+          "path": [
+            "api",
+            "cel.php"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "1000"
+            },
+            {
+              "key": "start",
+              "value": "2025-06-07"
+            },
+            {
+              "key": "end",
+              "value": "2025-06-07 23:59:59"
+            }
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{API_KEY}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "exec": [
+          ""
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "packages": {},
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "BASE_URL",
+      "value": "http://192.168.115.7",
+      "type": "string"
+    },
+    {
+      "key": "API_KEY",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}
