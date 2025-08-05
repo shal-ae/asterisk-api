@@ -1,7 +1,9 @@
 <?php
 
 $config = include __DIR__ . '/.api.env.php';
+$logFile = __DIR__ . '/api_call.log';
 require_once __DIR__ . '/inc/auth.php';
+require_once __DIR__ . '/inc/log.php';
 
 check_auth($config['api_key']);
 
@@ -26,7 +28,7 @@ if (!preg_match('/^\d{3,15}$/', $to)) {
 }
 
 // === СОДЕРЖИМОЕ ФАЙЛА ===
-$fileContent = 
+$fileContent =
     "Channel: Local/{$from}@{$context}\r\n" .
     "Callerid: Web Call <{$from}>\r\n" .
     "Account: {$from}\r\n" .
@@ -40,6 +42,8 @@ $fileContent =
 // === СОЗДАНИЕ ФАЙЛА ===
 $tempFile = tempnam($tempDir, 'call-');
 file_put_contents($tempFile, $fileContent);
+
+log_event("Make call - from {$from} to {$to}");
 
 // === УСТАНОВКА ПРАВ И ПЕРЕНОС ===
 chown($tempFile, 'asterisk');
